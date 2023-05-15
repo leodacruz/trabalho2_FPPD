@@ -69,7 +69,7 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 	fmt.Printf("%2d: recebi mensagem %d, [ %d, %d, %d ]\n", TaskId, temp.tipo, temp.corpo[0], temp.corpo[1], temp.corpo[2])
 
 	switch temp.tipo {
-	case 2:
+	case 2: //aqui é mensagem para indicar falha 
 		{
 			bFailed = true
 			fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
