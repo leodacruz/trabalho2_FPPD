@@ -1,6 +1,8 @@
 // Código exemplo para o trabaho de sistemas distribuidos (eleicao em anel)
 // By Cesar De Rose - 2022
 
+// para não fechar o deadlock não pode deixar um chanal aberto, faz na sequencia
+
 package main
 
 import (
@@ -39,19 +41,25 @@ func ElectionControler(in chan int) {
 
 	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
 
+	//pedir para o processo 2 inicia a leição
+	temp.tipo = 7
+	chans[0] <- temp
+	fmt.Printf("Controle: mudar o processo 2 para iniciar a eleicao\n")
+
+	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
+
 	// mudar o processo 1 - canal de entrada 0 - para falho (defini mensagem tipo 2 pra isto)
 
-	temp.tipo = 2
-	chans[0] <- temp
+	temp.tipo = 3
+	chans[1] <- temp
 	fmt.Printf("Controle: mudar o processo 1 para falho\n")
 	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
 
 	// matar os outrs processos com mensagens não conhecidas (só pra cosumir a leitura)
 
 	temp.tipo = 4
-	chans[1] <- temp
 	chans[2] <- temp
-
+	fmt.Printf("Controle: confirmação %d\n", <-in)
 	fmt.Println("\n   Processo controlador concluído\n")
 }
 
@@ -69,7 +77,7 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 	fmt.Printf("%2d: recebi mensagem %d, [ %d, %d, %d ]\n", TaskId, temp.tipo, temp.corpo[0], temp.corpo[1], temp.corpo[2])
 
 	switch temp.tipo {
-	case 2: //aqui é mensagem para indicar falha 
+	case 2:
 		{
 			bFailed = true
 			fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
@@ -87,6 +95,7 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 		{
 			fmt.Printf("%2d: não conheço este tipo de mensagem\n", TaskId)
 			fmt.Printf("%2d: lider atual %d\n", TaskId, actualLeader)
+			controle <- -5
 		}
 	}
 
