@@ -12,7 +12,7 @@ import (
 
 type mensagem struct {
 	tipo  int    // tipo da mensagem para fazer o controle do que fazer (eleição, confirmacao da eleicao)
-	corpo [3]int // conteudo da mensagem para colocar os ids (usar um tamanho ocmpativel com o numero de processos no anel)
+	corpo [4]int // conteudo da mensagem para colocar os ids (usar um tamanho ocmpativel com o numero de processos no anel)
 }
 
 var (
@@ -42,7 +42,7 @@ func ElectionControler(in chan int) {
 	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
 
 	//pedir para o processo 2 inicia a leição
-	temp.tipo = 7
+	temp.tipo = 0
 	chans[0] <- temp
 	fmt.Printf("Controle: mudar o processo 2 para iniciar a eleicao\n")
 
@@ -77,6 +77,24 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 	fmt.Printf("%2d: recebi mensagem %d, [ %d, %d, %d ]\n", TaskId, temp.tipo, temp.corpo[0], temp.corpo[1], temp.corpo[2])
 
 	switch temp.tipo {
+	case 0:
+		{
+		//fmt.Printf("iniciando a eleicao pelo processo %d",TaskId)	
+		if TaskId!=leader{
+			var temp1 mensagem
+		temp1 = temp
+        temp1.tipo = 0
+		
+		temp1.corpo[TaskId]= TaskId
+		temp1.corpo[leader]=5
+		out <- temp1
+		}else{
+			controle <-9
+		//fmt.Printf("volto aqui ou la %d",TaskId)
+		}
+			
+
+		}
 	case 2:
 		{
 			bFailed = true
@@ -91,6 +109,7 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 			fmt.Printf("%2d: lider atual %d\n", TaskId, actualLeader)
 			controle <- -5
 		}
+	
 	default:
 		{
 			fmt.Printf("%2d: não conheço este tipo de mensagem\n", TaskId)
