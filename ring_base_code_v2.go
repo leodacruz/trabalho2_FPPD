@@ -6,12 +6,13 @@ package main
 import (
 	"fmt"
 	"sync"
+	"time"
 )
 
 type mensagem struct {
 	tipo  int    // tipo da mensagem para fazer o controle do que fazer (eleição, confirmacao da eleicao)
-	corpo [5]int // conteudo da mensagem para colocar os ids, no caso tem mais um espaço que está sendo
-	//usado para salvar quem iniciou a eleição
+	corpo [6]int // conteudo da mensagem para colocar os ids, no caso tem mais um espaço que está sendo
+	//usado para salvar quem iniciou a eleição, e o ultimo para salvar o atual lider
 }
 
 var (
@@ -31,29 +32,96 @@ func ElectionControler(in chan int) {
 	defer wg.Done()   //isso aqui é o waitGroup, depois que o metodo acaba ele fala que este processo ja finalizou
 	var temp mensagem //uma declaração de uma variavel em Go
 
+
+	//inicio a autoEleição, os processo ficam monitorando o lider
+    temp.tipo = 1
+	chans[2] <- temp // enviando a mensagem pro processo 0
+    time.Sleep(2 * time.Microsecond)
 	// mudar o processo 0 - canal de entrada 3 - para falho (defini mensagem tipo 2 pra isto)
+	temp.tipo = 0
+	chans[1] <- temp // enviando a mensagem pro processo 0
+	fmt.Printf("Controle: mudar o processo 0 para falho\n")
+	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação,
+   // <- in //isso para esperar eles encontrarem sozinho o erro
+
 	temp.tipo = 0
 	chans[0] <- temp // enviando a mensagem pro processo 0
 	fmt.Printf("Controle: mudar o processo 0 para falho\n")
 	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação,
+    <- in //isso para esperar eles encontrarem sozinho o erro
+
+
+
+    //reativo os processo
+//	temp.tipo = 1
+//	chans[2] <- temp
+
+
+    // mudar o processo 0 - canal de entrada 3 - para falho (defini mensagem tipo 2 pra isto)
+	temp.tipo = 4
+	chans[0] <- temp // enviando a mensagem pro processo 0
+	fmt.Printf("Controle: mudar o processo 0 para ativo\n")
+	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação,
+
+	   // mudar o processo 0 - canal de entrada 3 - para falho (defini mensagem tipo 2 pra isto)
+	   temp.tipo = 7
+	   chans[0] <- temp // enviando a mensagem pro processo 0
+	   fmt.Printf("Controle: forca uma nova eleicao\n")
+	   fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação,
+    
+
+
+   // <- in //espero o acabar a eleição
+	 // mudar o processo 0 - canal de entrada 3 - para falho (defini mensagem tipo 2 pra isto)
+	/* temp.tipo = 4
+	 chans[2] <- temp // enviando a mensagem pro processo 0
+	 fmt.Printf("Controle: mudar o processo 0 para falho\n")
+	 fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação,
+     <- in */
+
+
+
 
 	//pedir para o processo 1 inicie a eleição
-	temp.tipo = 1
-	temp.corpo[4] = 1 //eu to salvando na mensagem que quem iniciou a eleição foi o processo do indice 1
-	chans[1] <- temp  // enviando mensagem pro processo 1
-	fmt.Printf("Controle: mudar o processo 1 para iniciar a eleicao\n")
-	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
+//	temp.tipo = 1
+//	temp.corpo[4] = 1 //eu to salvando na mensagem que quem iniciou a eleição foi o processo do indice 1
+//	chans[1] <- temp  // enviando mensagem pro processo 1
+//	fmt.Printf("Controle: mudar o processo 1 para iniciar a eleicao\n")
+//	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
 
-	fmt.Println(" Controle: qual seu status")
-	temp.tipo = 6 //esse tipo é para fazer todos os processos sairem do loop infinito
-	chans[3] <- temp
-	<- in
-	chans[0] <- temp
-	<- in
-	chans[1] <- temp
-	<- in
-	chans[2] <- temp
-	<- in
+//	fmt.Println(" Controle: qual seu status")
+//	temp.tipo = 6 //esse tipo é para fazer todos os processos sairem do loop infinito
+//	chans[3] <- temp
+//	<- in
+//	chans[0] <- temp
+//	<- in
+//	chans[1] <- temp
+//	<- in
+//	chans[2] <- temp
+//	<- in
+
+
+//	temp.tipo = 0
+//	chans[2] <- temp // enviando a mensagem pro processo 0
+//	fmt.Printf("Controle: mudar o processo 0 para falho\n")
+//	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação,
+
+//	temp.tipo = 1
+//	temp.corpo[4] = 1 //eu to salvando na mensagem que quem iniciou a eleição foi o processo do indice 1
+//	chans[3] <- temp  // enviando mensagem pro processo 1
+//	fmt.Printf("Controle: mudar o processo 1 para iniciar a eleicao\n")
+//	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
+    
+//	temp.tipo = 4
+//	chans[0] <- temp // enviando a mensagem pro processo 0
+//	fmt.Printf("Controle: mudar o processo 0 para ativo\n")
+//	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação,
+
+//	temp.tipo = 1
+//	temp.corpo[4] = 1 //eu to salvando na mensagem que quem iniciou a eleição foi o processo do indice 1
+//	chans[1] <- temp  // enviando mensagem pro processo 1
+//	fmt.Printf("Controle: mudar o processo 1 para iniciar a eleicao\n")
+//	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
 
 	fmt.Println(" Processo controlador finalizando canais")
 	temp.tipo = 5 //esse tipo é para fazer todos os processos sairem do loop infinito
@@ -79,25 +147,40 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 	for tes {
 
 		temp := <-in // ler mensagem
-		fmt.Printf("%2d: recebi mensagem %d, [ %d, %d, %d, %d, %d ]\n", TaskId, temp.tipo, temp.corpo[0], temp.corpo[1], temp.corpo[2], temp.corpo[3], temp.corpo[4])
+		fmt.Printf("%2d: recebi mensagem %d, [ %d, %d, %d, %d, %d ] Atual lider %d e falho = %v\n", TaskId, temp.tipo, temp.corpo[0], temp.corpo[1], temp.corpo[2], temp.corpo[3], temp.corpo[4],actualLeader,bFailed)
 
 		switch temp.tipo {
 
 		case 0: // controle avisa para este processo falhar
 			{
 				bFailed = true
-				fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
-				fmt.Printf("%2d: lider atual %d\n", TaskId, actualLeader)
+				fmt.Printf("{ %2d: falho %v ", TaskId, bFailed)
+				fmt.Printf("%2d: lider atual %d }\n", TaskId, actualLeader)
 				controle <- -5
 			}
 
-		case 1: // controle avisa para este processo iniciar eleicao
+		case 1: // fica monitorando o lider automagicamente para ver se ele está falho
 			{
-				var temp1 mensagem
-				temp1 = temp //copio a mensagem que o controle me enviou, tem o id de quem iniciou a eleição 
-				temp1.tipo = 2 
-				temp1.corpo[TaskId] = TaskId
-				out <- temp1
+                //parte para anotar os erros de cada processo
+				//var temp2 mensagem
+				if(bFailed){ //falhou é 99 no seu espaco da mensagem
+                temp.corpo[TaskId]=99
+				out <- temp
+				}else{
+					//situação que caso eu não seja o lider veja se ele nao esta falho
+					if(temp.corpo[actualLeader]==99 && actualLeader!=TaskId ){ //isso significa que o lider falhou e esse processo vai iniciar a eleição
+						var temp1 mensagem
+						temp1 = temp //copio a mensagem que o controle me enviou, tem o id de quem iniciou a eleição 
+						temp1.tipo = 2 
+						temp1.corpo[TaskId] = TaskId
+						temp1.corpo[4] = TaskId
+						out <- temp1
+					}else{
+					temp.tipo=1
+					//temp.corpo[TaskId]=TaskId
+					out <- temp
+					}
+				}
 			}
 
 		case 2:
@@ -129,13 +212,13 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 						contador = 4 // numero maior que o id max que seria o 3
 
 						for i := 0; i < 4; i++ {
-							if temp1.corpo[i] < contador {
-								contador = temp1.corpo[i]
+							if temp.corpo[i] < contador {
+								contador = temp.corpo[i]
 							}
 						}
 
 						//salvo no primeiro indice quem venceu e passo pelo anel a informação
-						temp1.corpo[0] = contador
+						temp1.corpo[5] = contador
 						//aqui eu salvo quem fez a eleicao pra depois saber que enviou o novo lider para todos do anel
 						temp1.corpo[4] = TaskId
 						//salvo quem é o novo lider
@@ -163,7 +246,7 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 				if temp.corpo[4] == TaskId {
 					controle <- 1
 				} else {
-					actualLeader = temp.corpo[0]
+					actualLeader = temp.corpo[5]
 					out <- temp
 				}
 			}
@@ -171,8 +254,8 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 		case 4:
 			{
 				bFailed = false
-				fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
-				fmt.Printf("%2d: lider atual %d\n", TaskId, actualLeader)
+				fmt.Printf("{ %2d: falho %v ", TaskId, bFailed)
+				fmt.Printf("%2d: lider atual %d }\n", TaskId, actualLeader)
 				controle <- -5
 			}
 
@@ -183,10 +266,23 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 			}
 		case 6:
 			{
-				fmt.Printf("%2d: falho %v \n", TaskId, bFailed)
-				fmt.Printf("%2d: lider atual %d\n", TaskId, actualLeader)
+				fmt.Printf("{ %2d: falho %v ", TaskId, bFailed)
+				fmt.Printf("%2d: lider atual %d }\n", TaskId, actualLeader)
 				controle <- 0
 			}
+		case 7: //força uma eleição
+			{
+				var temp1 mensagem
+						temp1 = temp //copio a mensagem que o controle me enviou, tem o id de quem iniciou a eleição 
+						temp1.tipo = 2 
+						temp1.corpo[TaskId] = TaskId
+						temp1.corpo[4] = TaskId
+						out <- temp1
+
+
+			}
+
+		
 
 		default:
 			{
