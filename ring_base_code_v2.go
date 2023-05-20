@@ -27,6 +27,33 @@ var (
 )
 
 func ElectionControler(in chan int) {
+    //o controlador vai fazer os seguintes testes
+	/*
+	1- testar o auto detector de falha do lider
+	{
+		- mandar a mensagem do tipo 1 para qualquer processo do anel - tipo 1: para o Anel ficar monitorando o lider
+		- mandar a mensagem do tipo 0 para o lider - tipo 0: para forçar a falha do processo
+	}
+	2- falhar um processo que nao seja o lider e iniciar uma eleição
+	{
+		- mandar uma mensagem do tipo 0 para um processo que nao seja o lider - tipo 0= para forçar a falha do processo
+		- mandar uma mensagem do tipo 7 para o atual lider - tipo 7: força este processo a iniciar uma eleição
+	}
+	3- religar um processo e iniciar a eleição
+	    - mandar a mensagem do tipo 4 para um processo que esteja falho- tipo 4: religa um processo que esteja falho
+		- mandar a mensagem do tipo 7 para o processo que foi religado - tipo 7: força este processo a iniciar uma eleição
+	}
+	4- finalizar todos os processos
+	{
+		-mandar a mensagem do tipo 5 para todos os processos - tipo 5: força a saida dos processos do loop, assim finalizando-os  
+	}
+	
+	
+	*/
+
+
+
+
 	//esse defer faz o que está do lado dele apos a conclusão de todo metodo, meio que se tu
 	//botar o wg.Done() la no final da no mesmo
 	defer wg.Done()   //isso aqui é o waitGroup, depois que o metodo acaba ele fala que este processo ja finalizou
@@ -317,7 +344,7 @@ func main() {
 
 	go ElectionControler(controle)
 
-	fmt.Println("\n   Processo controlador criado\n")
+	fmt.Println("\n   Processo controlador criado")
 
 	wg.Wait() // Wait for the goroutines to finish\
 }
