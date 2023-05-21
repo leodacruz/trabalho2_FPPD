@@ -173,7 +173,7 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 	for tes {
 
 		temp := <-in // ler mensagem
-		fmt.Printf("Processo %2d: recebi mensagem %d, [ %d, %d, %d, %d ] Atual lider %d  falho = %v  actualStaus lider = %d\n", 
+		fmt.Printf("Processo %2d: recebi mensagem %d, [ %d, %d, %d, %d ] Atual lider %d  falho = %v  actualStaus lider = %d  <- Antes de entrar no Switch \n", 
 		TaskId, temp.tipo, temp.corpo[0], temp.corpo[1], temp.corpo[2], temp.corpo[3], actualLeader, bFailed, actualStatusLeader)
 
 		switch temp.tipo {
@@ -182,14 +182,14 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 				{
 					bFailed = true
 					fmt.Printf("Processo %2d: Status falho - %v \n", TaskId, bFailed)
-					controle <- 0
+					controle <- 1
 				}
 
 			case 1: // tipo 1: Religa um Processo falho
 				{
 					bFailed = false
 					fmt.Printf("Processo %2d: Status falho - %v \n", TaskId, bFailed)
-					controle <- 0
+					controle <- 1
 				}
 
 			case 2: // tipo 2: Inicia a auto detcção de falha do lider atual
@@ -253,10 +253,11 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 						}
 
 						// enviando a mensagem de novo lider ao demais no anel 
-                        temp.tipo= 4
-						temp.corpo[0]= actualLeader
-						temp.corpo[1]=TaskId
-						out <- temp
+						var temp1 mensagem
+                        temp1.tipo= 4
+						temp1.corpo[0]= actualLeader
+						temp1.corpo[1]=TaskId
+						out <- temp1
 						break	//para sair do case 3
 					}
 				}
@@ -264,7 +265,7 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 			case 4: //tipo 4: Usado para informar quem ganhou a eleição
 				{ 
 					if temp.corpo[1] == TaskId {
-						controle <- 0
+						controle <- 1
 					} else {
 						actualLeader = temp.corpo[0]
 						out <- temp
@@ -281,16 +282,19 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 
 			case 6://tipo 6: Finalizar o processo
 				{
-					fmt.Printf("\nProcesso %2d: Finalizando ...  \n", TaskId)
+					fmt.Printf("Processo %2d: Finalizando ...  \n", TaskId)
 					tes = false
 				}
 
 			default:
 				{
 					fmt.Printf("%2d: não conheço este tipo de mensagem\n", TaskId)
-					controle <- -5
+					controle <- 1
 				}
 		}
+
+	//	fmt.Printf("Processo %2d: recebi mensagem %d, [ %d, %d, %d, %d ] Atual lider %d  falho = %v  actualStaus lider = %d  <- depois \n", 
+	//	TaskId, temp.tipo, temp.corpo[0], temp.corpo[1], temp.corpo[2], temp.corpo[3], actualLeader, bFailed, actualStatusLeader)
 
 	}
 	
