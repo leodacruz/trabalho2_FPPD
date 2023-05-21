@@ -1,19 +1,44 @@
-// Código exemplo para o trabaho de sistemas distribuidos (eleicao em anel)
-// By Cesar De Rose - 2022
+// Código para o trabaho de sistemas distribuidos (eleicao em anel)
+// Grupo 12:  Daniela Suttoff, Leonardo Cruz e Nathalia Rodrigues
+
+/*
+A ordem dos canais são a seguinte
+processo 0: in - canal[0]; out - canal[1]
+processo 1: in - canal[1]; out - canal[2]
+processo 2: in - canal[2]; out - canal[3]
+processo 3: in - canal[3]; out - canal[0]
+*/
+
+
+
 
 package main
 
 import (
 	"fmt"
 	"sync"
-	"time"
 )
 
 type mensagem struct {
-	tipo  int    // tipo da mensagem para fazer o controle do que fazer (eleição, confirmacao da eleicao)
-	corpo [6]int // conteudo da mensagem para colocar os ids, no caso tem mais um espaço que está sendo
-	//usado para salvar quem iniciou a eleição, e o ultimo para salvar o atual lider
+	tipo  int    				// tipo da mensagem
+	corpo [6]int 				// conteudo da mensagem para ser usado na eleição
 }
+
+/*
+Tipo das mensagens
+Controle manda -> 			tipo 0: Força a falha de um processo
+Controle manda -> 			tipo 1: Religa um Processo falho
+Controle manda -> 			tipo 2: Inicia a auto detcção de falha do lider atual
+Processo para processo -> 	tipo 3: Usado para a "votação" da eleição
+Processo para processo ->	tipo 4: Usado para informar quem ganhou a eleição
+Controle manda -> 			tipo 5: Força uma eleição
+Controle manda -> 			tipo 6: Finalizar o processo
+*/
+
+
+
+
+
 
 var (
 	chans = []chan mensagem{ // vetor de canias para formar o anel de eleicao - chan[0], chan[1] and chan[2] ...
@@ -31,135 +56,79 @@ func ElectionControler(in chan int) {
 	/*
 	1- testar o auto detector de falha do lider
 	{
-		- mandar a mensagem do tipo 1 para qualquer processo do anel - tipo 1: para o Anel ficar monitorando o lider
-		- mandar a mensagem do tipo 0 para o lider - tipo 0: para forçar a falha do processo
+		- mandar a mensagem do tipo 2 para qualquer processo do anel 
+		- mandar a mensagem do tipo 0 para o lider 
 	}
 	2- falhar um processo que nao seja o lider e iniciar uma eleição
 	{
-		- mandar uma mensagem do tipo 0 para um processo que nao seja o lider - tipo 0= para forçar a falha do processo
-		- mandar uma mensagem do tipo 7 para o atual lider - tipo 7: força este processo a iniciar uma eleição
+		- mandar uma mensagem do tipo 0 para um processo que nao seja o lider 
+		- mandar uma mensagem do tipo 5 para o atual lider 
 	}
 	3- religar um processo e iniciar a eleição
-	    - mandar a mensagem do tipo 4 para um processo que esteja falho- tipo 4: religa um processo que esteja falho
-		- mandar a mensagem do tipo 7 para o processo que foi religado - tipo 7: força este processo a iniciar uma eleição
+	    - mandar a mensagem do tipo 1 para um processo que esteja falho
+		- mandar a mensagem do tipo 5 para o processo que foi religado 
 	}
 	4- finalizar todos os processos
 	{
-		-mandar a mensagem do tipo 5 para todos os processos - tipo 5: força a saida dos processos do loop, assim finalizando-os  
+		-mandar a mensagem do tipo 6 para todos os processos  
 	}
-	
-	
 	*/
 
 
+									//esse defer faz o que está do lado dele apos a conclusão de todo metodo, meio que se tu
+									//botar o wg.Done() la no final da no mesmo
+	defer wg.Done()   				//isso aqui é o waitGroup, depois que o metodo acaba ele fala que este processo ja finalizou
+	
+	
+	var temp mensagem //uma declaração de uma variavel em Go, esta variavel sera usada em todos os testes
+
+	//-------------------------------------------------------------------- Teste 1 -----------------------------------------------------------
+	
+    temp.tipo = 2
+	chans[2] <- temp  	//mando a mensagem do tipo 2 para um processo qualquer 
+    fmt.Println("Controle: Iniciar Auto detecção de Falha do lider")
+	temp.tipo = 0
+	chans[0] <- temp  	//mando a mensagem do tipo 0 para um processo lider
+	fmt.Println("Controle: mudar o processo 0 para falho")
+	fmt.Printf("Controle: confirmação de falha %d\n", <-in) 
+    fmt.Printf("Controle: confirmação de fim da eleição %d\n", <-in) 
 
 
-	//esse defer faz o que está do lado dele apos a conclusão de todo metodo, meio que se tu
-	//botar o wg.Done() la no final da no mesmo
-	defer wg.Done()   //isso aqui é o waitGroup, depois que o metodo acaba ele fala que este processo ja finalizou
-	var temp mensagem //uma declaração de uma variavel em Go
-
-
-	//inicio a autoEleição, os processo ficam monitorando o lider
-    temp.tipo = 1
+	//-------------------------------------------------------------------- Teste 2 -----------------------------------------------------------
+	
+	temp.tipo = 0
 	chans[2] <- temp // enviando a mensagem pro processo 0
-    time.Sleep(2 * time.Microsecond)
-	// mudar o processo 0 - canal de entrada 3 - para falho (defini mensagem tipo 2 pra isto)
-	temp.tipo = 0
-	chans[1] <- temp // enviando a mensagem pro processo 0
-	fmt.Printf("Controle: mudar o processo 0 para falho\n")
-	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação,
-   // <- in //isso para esperar eles encontrarem sozinho o erro
-
-	temp.tipo = 0
-	chans[0] <- temp // enviando a mensagem pro processo 0
-	fmt.Printf("Controle: mudar o processo 0 para falho\n")
-	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação,
-    <- in //isso para esperar eles encontrarem sozinho o erro
+	fmt.Printf("Controle: mudar o processo 2 para falho\n")
+	fmt.Printf("Controle: confirmação de falha %d\n", <-in) 
+    temp.tipo = 5
+	chans[1] <- temp // enviando a mensagem pro processo 1
+	fmt.Printf("Controle: Iniciar eleição\n")
+	fmt.Printf("Controle: confirmação de fim da eleição %d\n", <-in) 
 
 
+	//-------------------------------------------------------------------- Teste 3 -----------------------------------------------------------
 
-    //reativo os processo
-//	temp.tipo = 1
-//	chans[2] <- temp
-
-
-    // mudar o processo 0 - canal de entrada 3 - para falho (defini mensagem tipo 2 pra isto)
-	temp.tipo = 4
+	temp.tipo = 1
 	chans[0] <- temp // enviando a mensagem pro processo 0
 	fmt.Printf("Controle: mudar o processo 0 para ativo\n")
-	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação,
+	fmt.Printf("Controle: confirmação de ativação %d\n", <-in) 
+    temp.tipo = 5
+	chans[0] <- temp // enviando a mensagem pro processo 1
+	fmt.Printf("Controle: Iniciar eleição\n")
+	fmt.Printf("Controle: confirmação de fim da eleição %d\n", <-in) 
 
-	   // mudar o processo 0 - canal de entrada 3 - para falho (defini mensagem tipo 2 pra isto)
-	   temp.tipo = 7
-	   chans[0] <- temp // enviando a mensagem pro processo 0
-	   fmt.Printf("Controle: forca uma nova eleicao\n")
-	   fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação,
-    
+	//-------------------------------------------------------------------- Teste 4 -----------------------------------------------------------
 
-
-   // <- in //espero o acabar a eleição
-	 // mudar o processo 0 - canal de entrada 3 - para falho (defini mensagem tipo 2 pra isto)
-	/* temp.tipo = 4
-	 chans[2] <- temp // enviando a mensagem pro processo 0
-	 fmt.Printf("Controle: mudar o processo 0 para falho\n")
-	 fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação,
-     <- in */
-
-
-
-
-	//pedir para o processo 1 inicie a eleição
-//	temp.tipo = 1
-//	temp.corpo[4] = 1 //eu to salvando na mensagem que quem iniciou a eleição foi o processo do indice 1
-//	chans[1] <- temp  // enviando mensagem pro processo 1
-//	fmt.Printf("Controle: mudar o processo 1 para iniciar a eleicao\n")
-//	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
-
-//	fmt.Println(" Controle: qual seu status")
-//	temp.tipo = 6 //esse tipo é para fazer todos os processos sairem do loop infinito
-//	chans[3] <- temp
-//	<- in
-//	chans[0] <- temp
-//	<- in
-//	chans[1] <- temp
-//	<- in
-//	chans[2] <- temp
-//	<- in
-
-
-//	temp.tipo = 0
-//	chans[2] <- temp // enviando a mensagem pro processo 0
-//	fmt.Printf("Controle: mudar o processo 0 para falho\n")
-//	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação,
-
-//	temp.tipo = 1
-//	temp.corpo[4] = 1 //eu to salvando na mensagem que quem iniciou a eleição foi o processo do indice 1
-//	chans[3] <- temp  // enviando mensagem pro processo 1
-//	fmt.Printf("Controle: mudar o processo 1 para iniciar a eleicao\n")
-//	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
-    
-//	temp.tipo = 4
-//	chans[0] <- temp // enviando a mensagem pro processo 0
-//	fmt.Printf("Controle: mudar o processo 0 para ativo\n")
-//	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação,
-
-//	temp.tipo = 1
-//	temp.corpo[4] = 1 //eu to salvando na mensagem que quem iniciou a eleição foi o processo do indice 1
-//	chans[1] <- temp  // enviando mensagem pro processo 1
-//	fmt.Printf("Controle: mudar o processo 1 para iniciar a eleicao\n")
-//	fmt.Printf("Controle: confirmação %d\n", <-in) // receber e imprimir confirmação
-
-	fmt.Println(" Processo controlador finalizando canais")
+	fmt.Println("Controle: finalizando todos os processos")
 	temp.tipo = 5 //esse tipo é para fazer todos os processos sairem do loop infinito
-	chans[3] <- temp
 	chans[0] <- temp
 	chans[1] <- temp
 	chans[2] <- temp
+	chans[3] <- temp
 }
 
 func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) {
-	defer wg.Done() // isso ele faz depois que acabar o metodo
+	defer wg.Done() 
 
 	//para ficar sempre ativos os processos, controle do loop infinito
 	var tes bool // declaração da variavel no Go
