@@ -9,20 +9,12 @@ processo 2: in - canal[2]; out - canal[3]
 processo 3: in - canal[3]; out - canal[0]
 */
 
-
-
-
 package main
 
 import (
 	"fmt"
 	"sync"
 )
-
-type mensagem struct {
-	tipo  int    				// tipo da mensagem
-	corpo [6]int 				// conteudo da mensagem para ser usado na eleição
-}
 
 /*
 Tipo das mensagens
@@ -34,10 +26,10 @@ Processo para processo ->	tipo 4: Usado para informar quem ganhou a eleição
 Controle manda -> 			tipo 5: Força uma eleição
 Controle manda -> 			tipo 6: Finalizar o processo
 */
-
-
-
-
+type mensagem struct {
+	tipo  int    				// tipo da mensagem
+	corpo [4]int 				// conteudo da mensagem para ser usado na eleição
+}
 
 
 var (
@@ -120,180 +112,196 @@ func ElectionControler(in chan int) {
 	//-------------------------------------------------------------------- Teste 4 -----------------------------------------------------------
 
 	fmt.Println("Controle: finalizando todos os processos")
-	temp.tipo = 5 //esse tipo é para fazer todos os processos sairem do loop infinito
+	temp.tipo = 6 //esse tipo é para fazer todos os processos sairem do loop infinito
 	chans[0] <- temp
 	chans[1] <- temp
 	chans[2] <- temp
 	chans[3] <- temp
 }
 
+/*
+Explicação Auto detecção, processo de eleição, processo de decisão do novo lider, processo de avisar quem é o novo lider
+1 - a mensagem de auto detecção fica rodando no anel
+2 - todos os processos falhos só passam a mensagem para o proximo, não interagem com ela
+3 -  quando o lider recebe a mensagem ele muda o valor que está registrado no seu indice,
+caso esteja 0 ele muda para 1, caso esteja 1 ele muda para 0, ele faz isso toda vez que fica 
+recebendo a mensagem durante a auto detecção
+4 - processos ativos comparam a informação que está salva no corpo da mensagem, na posição
+do lider, com a variavel local de status do lider que eles tem, caso sejam diferentes está
+tudo certo, caso estejam iguais, o processo inicia a eleição. 
+*Como o lider fica mudando este valor a cada rodada, o unico motivo de um processo ter a mesmo
+valor, é que o lider está falho, pois como um processo falho só passa a informação adiante o 
+valor que o lider sempre muda seria o mesmo
+5 - Ao iniciar uma eleição, se cria uma variavel temp1, para zerar o corpo da mensagem, por isso
+não se usa o temp. Apos, o processo que iniciou a eleição anota 2 no seu indice do corpo da mensagem, 
+e envia a mensagem de votação(3) para o proximo processo
+6 - Ao receber o tipo votação (3) o processo que está ativo vai colocar 1 no corpo da mensagem e 
+enviar para o Proximo
+7 - Processo não ativos só passaram a mensagem adiante, assim em suas posições ficara o valor 0
+8 - Para saber quando acaba a votação, ao receber a mensagem o processo ve se o valor 2 está no 
+seu indice, caso esteja se inicia o processo de "contagem de votos"
+9 - Contagem de votos é saber quais processos estão aptos para concorrer a eleição e depois 
+aplicar a regra que o processo que tenha o menor indice ganhe
+10 - como o menor indice ganha, basta fazer um for, que percorra o corpo da mensagem
+começando de menor ao maior, e o primeiro que tiver o valor 1, é o novo lider
+11 - Apos o processo salvar quem é o novo lider ele passa a informação pelo Anel
+12- O corpo da  mensagem do novo lider: Indice 0, vai o Id do novo lider
+Indice 1 vai o Id de quem começou a enviar a mensagem de aviso do novo lider
+
+
+
+
+*/
+
+
+
+
+
 func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) {
 	defer wg.Done() 
 
-	//para ficar sempre ativos os processos, controle do loop infinito
-	var tes bool // declaração da variavel no Go
-	tes = true   // atribuindo o true na variavel
+						// para ficar sempre ativos os processos, controle do loop infinito
+	var tes bool 		// declaração da variavel no Go
+	tes = true   		// atribuindo o true na variavel
 
 	var actualLeader int
-	var bFailed bool = false // todos inciam sem falha
+	var actualStatusLeader int
 
-	actualLeader = leader // indicação do lider veio por parâmatro
+	var bFailed bool = false 	// todos inciam sem falha
+
+	actualLeader = leader 		// indicação do lider veio por parâmatro
+
+	if(TaskId == leader){
+		actualStatusLeader = 1      // usado na autodetecção do lider falho 	
+	}else{
+		actualStatusLeader = 0      // usado na autodetecção do lider falho 
+	}
+	
 
 	//loop infinito
 	for tes {
 
 		temp := <-in // ler mensagem
-		fmt.Printf("%2d: recebi mensagem %d, [ %d, %d, %d, %d, %d ] Atual lider %d e falho = %v\n", TaskId, temp.tipo, temp.corpo[0], temp.corpo[1], temp.corpo[2], temp.corpo[3], temp.corpo[4],actualLeader,bFailed)
+		fmt.Printf("Processo %2d: recebi mensagem %d, [ %d, %d, %d, %d ] Atual lider %d e falho = %v\n", 
+		TaskId, temp.tipo, temp.corpo[0], temp.corpo[1], temp.corpo[2], temp.corpo[3],actualLeader,bFailed)
 
 		switch temp.tipo {
 
-		case 0: // controle avisa para este processo falhar
-			{
-				bFailed = true
-				fmt.Printf("{ %2d: falho %v ", TaskId, bFailed)
-				fmt.Printf("%2d: lider atual %d }\n", TaskId, actualLeader)
-				controle <- -5
-			}
-
-		case 1: // fica monitorando o lider automagicamente para ver se ele está falho
-			{
-                //parte para anotar os erros de cada processo
-				//var temp2 mensagem
-				if(bFailed){ //falhou é 99 no seu espaco da mensagem
-                temp.corpo[TaskId]=99
-				out <- temp
-				}else{
-					//situação que caso eu não seja o lider veja se ele nao esta falho
-					if(temp.corpo[actualLeader]==99 && actualLeader!=TaskId ){ //isso significa que o lider falhou e esse processo vai iniciar a eleição
-						var temp1 mensagem
-						temp1 = temp //copio a mensagem que o controle me enviou, tem o id de quem iniciou a eleição 
-						temp1.tipo = 2 
-						temp1.corpo[TaskId] = TaskId
-						temp1.corpo[4] = TaskId
-						out <- temp1
-					}else{
-					temp.tipo=1
-					//temp.corpo[TaskId]=TaskId
-					out <- temp
-					}
+			case 0: // tipo 0: Força a falha de um processo
+				{
+					bFailed = true
+					fmt.Printf("Processo %2d: Status falho - %v ", TaskId, bFailed)
+					controle <- 0
 				}
-			}
 
-		case 2:
-			{
-				//estou fazendo a eleicao, e dou a volta no Anel 
+			case 1: // tipo 1: Religa um Processo falho
+				{
+					bFailed = false
+					fmt.Printf("Processo %2d: Status falho - %v ", TaskId, bFailed)
+					controle <- 0
+				}
 
-				//caso o processo esteja com falha ele "pula a eleição"
-				if bFailed { 
-					var temp1 mensagem
-					temp1 = temp
-					temp1.tipo = 2
-					temp1.corpo[TaskId] = 99 // isso é pra esse processo nao interferir na eleição
-					out <- temp1
-				} else {
-					//aqui o processo está apto a partcipar da eleição
-
-
-					// aqui é pra caso ja deu a volta no Anel e ja da pra ver quem é o lider
-					if temp.corpo[4] == TaskId {
+			case 2: // tipo 2: Inicia a auto detcção de falha do lider atual
+				{
+					//caso o processo esteja falho ele passa adiante a mensagem
+					if(bFailed){ 
+						out <- temp 
+					}else{
 						
-						var temp1 mensagem
-						temp1 = temp
-						temp1.tipo = 3 // esse é o tipo pra corfirmar que a eleicao acabou
-
-						//aqui eu percorro e vejo o menor id para ser o novo lider
-						//processos falhos terao seu id como 99 por padrão assim nao corre o
-						//risco de eleger um processo falho como lider
-						var contador int
-						contador = 4 // numero maior que o id max que seria o 3
-
-						for i := 0; i < 4; i++ {
-							if temp.corpo[i] < contador {
-								contador = temp.corpo[i]
+						// sou o lider, e preciso trocar o valor da mensagem que esta no corpo, no meu indice
+                        if(TaskId == actualLeader){ 
+							if(temp.corpo[TaskId] == 0){
+								temp.corpo[TaskId] = 1
+								out <- temp 	
+							}else{
+								temp.corpo[TaskId] = 0
+								out <- temp 
 							}
 						}
 
-						//salvo no primeiro indice quem venceu e passo pelo anel a informação
-						temp1.corpo[5] = contador
-						//aqui eu salvo quem fez a eleicao pra depois saber que enviou o novo lider para todos do anel
-						temp1.corpo[4] = TaskId
-						//salvo quem é o novo lider
-						actualLeader = contador
-						//envio a informação pra todo mundo
-						out <- temp1
-					} else {
-						//aqui é pra cada processo botar o Id no Anel e passar adiante
-						var temp1 mensagem
-						temp1 = temp
-						temp1.tipo = 2
-						temp1.corpo[TaskId] = TaskId
-						out <- temp1
+						//Sou um processo e preciso ver se o lider está ativo, caso não
+						if(temp.corpo[actualLeader] == actualStatusLeader ){ 
+							var temp1 mensagem 
+							temp1.tipo = 3 
+							temp1.corpo[TaskId] = 2
+							out <- temp1
+						}else{
+							actualStatusLeader = temp.corpo[TaskId]
+							out <- temp
+						}
 					}
-
 				}
 
-			}
+			case 3: //tipo 3: Usado para a "votação" da eleição
+				{
+					//se sou um processo falho
+					if bFailed { 
+						out <- temp  //caso seja um processo falho, só passo a mensagem adiante sem interferir ela
+					} else {
 
-		case 3:
-			{ //aqui eu att o lider e passo a informação a diante
+						//aqui significa que a votação ja passou por todo mundo do Anel
+						if(temp.corpo[TaskId]==2){
+							temp.corpo[TaskId]=1 //mudo para todo mundo apto estiver com 1 no indice do corpo da mensagem
+						}else{
+							//continuo a votação
+							temp.corpo[TaskId]=1
+							out <- temp
+						}
 
-				//para saber se ja posso informar ao controlador que a eleição ja acabou e todos ja
-				//estao cientes do novo lider
-				if temp.corpo[4] == TaskId {
-					controle <- 1
-				} else {
-					actualLeader = temp.corpo[5]
-					out <- temp
+						//se passar para cá eu sei que acabou a votação
+                        
+						//Algotimo de decisão do novo lider, lembrando que o menor vence
+						for i := 0; i < 4; i++ {
+							if temp.corpo[i] == 1 {
+								actualStatusLeader = i
+								break
+							}
+						}
+
+						// enviando a mensagem de novo lider ao demais no anel 
+                        temp.tipo= 4
+						temp.corpo[0]= actualLeader
+						temp.corpo[1]=TaskId
+						out <- temp
+
+					}
 				}
-			}
 
-		case 4:
-			{
-				bFailed = false
-				fmt.Printf("{ %2d: falho %v ", TaskId, bFailed)
-				fmt.Printf("%2d: lider atual %d }\n", TaskId, actualLeader)
-				controle <- -5
-			}
+			case 4: //tipo 4: Usado para informar quem ganhou a eleição
+				{ 
+					if temp.corpo[1] == TaskId {
+						controle <- 0
+					} else {
+						actualLeader = temp.corpo[0]
+						out <- temp
+					}
+				}
 
-		case 5:
-			{
-				fmt.Printf("%2d: eu sei que o lider eh %d   \n", TaskId, actualLeader)
-				tes = false
-			}
-		case 6:
-			{
-				fmt.Printf("{ %2d: falho %v ", TaskId, bFailed)
-				fmt.Printf("%2d: lider atual %d }\n", TaskId, actualLeader)
-				controle <- 0
-			}
-		case 7: //força uma eleição
-			{
-				var temp1 mensagem
-						temp1 = temp //copio a mensagem que o controle me enviou, tem o id de quem iniciou a eleição 
-						temp1.tipo = 2 
-						temp1.corpo[TaskId] = TaskId
-						temp1.corpo[4] = TaskId
-						out <- temp1
+			case 5: //tipo 5: Força uma eleição
+				{
+					var temp1 mensagem 
+					temp1.tipo = 3 
+					temp1.corpo[TaskId] = 2
+					out <- temp1
+				}
 
+			case 6://tipo 6: Finalizar o processo
+				{
+					fmt.Printf("Processo %2d: Finalizando ...  \n", TaskId, actualLeader)
+					tes = false
+				}
 
-			}
-
-		
-
-		default:
-			{
-				fmt.Printf("%2d: não conheço este tipo de mensagem\n", TaskId)
-				
-				controle <- -5
-			}
+			default:
+				{
+					fmt.Printf("%2d: não conheço este tipo de mensagem\n", TaskId)
+					
+					controle <- -5
+				}
 		}
 
 	}
-	//fmt.Print("teste ")
-
-	// variaveis locais que indicam se este processo é o lider e se esta ativo
-
-	fmt.Printf("%2d: terminei \n", TaskId)
+	
+	fmt.Printf("Processo %2d: terminei \n", TaskId)
 }
 
 func main() {
@@ -301,19 +309,18 @@ func main() {
 	wg.Add(5) // Add a count of four, one for each goroutine
 
 	// criar os processo do anel de eleicao
-
-	go ElectionStage(0, chans[0], chans[1], 0) // este é o lider
-	go ElectionStage(1, chans[1], chans[2], 0) // não é lider, é o processo 0
-	go ElectionStage(2, chans[2], chans[3], 0) // não é lider, é o processo 0
-	go ElectionStage(3, chans[3], chans[0], 0) // não é lider, é o processo 0
-
+	go ElectionStage(0, chans[0], chans[1], 0) //Processo 0 - este é o lider
+	go ElectionStage(1, chans[1], chans[2], 0) //Processo 1  
+	go ElectionStage(2, chans[2], chans[3], 0) //Processo 2 
+	go ElectionStage(3, chans[3], chans[0], 0) //Processo 3 
 	fmt.Println("\n   Anel de processos criado")
 
 	// criar o processo controlador
-
 	go ElectionControler(controle)
-
 	fmt.Println("\n   Processo controlador criado")
 
 	wg.Wait() // Wait for the goroutines to finish\
+
+	fmt.Println("\nPrograma Encerrado")
+
 }
