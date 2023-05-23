@@ -13,7 +13,6 @@ package main
 
 import (
 	"fmt"
-	"sync"
 )
 
 /*
@@ -40,7 +39,8 @@ var (
 		make(chan mensagem),
 	}
 	controle = make(chan int)
-	wg       sync.WaitGroup // wg is used to wait for the program to finish
+	finalizador = make(chan int) //para encerra o programa
+	//wg       sync.WaitGroup // wg is used to wait for the program to finish
 )
 
 func ElectionControler(in chan int) {
@@ -69,7 +69,7 @@ func ElectionControler(in chan int) {
 
 									//esse defer faz o que está do lado dele apos a conclusão de todo metodo, meio que se tu
 									//botar o wg.Done() la no final da no mesmo
-	defer wg.Done()   				//isso aqui é o waitGroup, depois que o metodo acaba ele fala que este processo ja finalizou
+//	defer wg.Done()   				//isso aqui é o waitGroup, depois que o metodo acaba ele fala que este processo ja finalizou
 	
 	
 	var temp mensagem //uma declaração de uma variavel em Go, esta variavel sera usada em todos os testes
@@ -114,9 +114,14 @@ func ElectionControler(in chan int) {
 	fmt.Println("Controle: finalizando todos os processos")
 	temp.tipo = 6 //esse tipo é para fazer todos os processos sairem do loop infinito
 	chans[0] <- temp
+	<- in //para garantir que o processo encerrou antes de chamar o finalizador
 	chans[1] <- temp
+	<- in
 	chans[2] <- temp
+	<- in
 	chans[3] <- temp
+	<- in
+	finalizador <- 1
 }
 
 /*
@@ -153,7 +158,7 @@ no corpo na posicao 1, ele avisa ao controle que a eleição acabou
 
 
 func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) {
-	defer wg.Done() 
+//	defer wg.Done() 
 
 						// para ficar sempre ativos os processos, controle do loop infinito
 	var tes bool 		// declaração da variavel no Go
@@ -284,6 +289,7 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 				{
 					fmt.Printf("Processo %2d: Finalizando ...  \n", TaskId)
 					tes = false
+
 				}
 
 			default:
@@ -299,11 +305,12 @@ func ElectionStage(TaskId int, in chan mensagem, out chan mensagem, leader int) 
 	}
 	
 	fmt.Printf("Processo %2d: terminei \n", TaskId)
+	controle <- 1 //para indicar ao controle que acabou o processo
 }
 
 func main() {
 
-	wg.Add(5) // Add a count of four, one for each goroutine
+	//wg.Add(5) // Add a count of four, one for each goroutine
 
 	// criar os processo do anel de eleicao
 	go ElectionStage(0, chans[0], chans[1], 0) //Processo 0 - este é o lider
@@ -316,8 +323,8 @@ func main() {
 	go ElectionControler(controle)
 	fmt.Println("\n   Processo controlador criado")
 
-	wg.Wait() // Wait for the goroutines to finish\
-
+//	wg.Wait() // Wait for the goroutines to finish\
+    <- finalizador // depois que o controle faz os testes manda uma mensagem para acabar o programa 
 	fmt.Println("\nPrograma Encerrado")
 
 }
